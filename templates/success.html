@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Your account has been successfully verified. Welcome to our platform!">
+    <title>Success — Account Verified</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="bg-particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <!-- Confetti effect -->
+    <div class="confetti-container" id="confetti-container"></div>
+
+    <div class="container">
+        <div class="card success-card" id="success-card">
+            <div class="card-glow success-glow"></div>
+
+            <div class="card-header">
+                <div class="success-checkmark">
+                    <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
+                        <circle cx="36" cy="36" r="34" stroke="url(#success-ring)" stroke-width="4" class="success-ring"/>
+                        <path d="M22 36L32 46L50 26" stroke="url(#check-grad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="success-check"/>
+                        <defs>
+                            <linearGradient id="success-ring" x1="0" y1="0" x2="72" y2="72">
+                                <stop stop-color="#22c55e"/>
+                                <stop offset="1" stop-color="#06b6d4"/>
+                            </linearGradient>
+                            <linearGradient id="check-grad" x1="22" y1="26" x2="50" y2="46">
+                                <stop stop-color="#22c55e"/>
+                                <stop offset="1" stop-color="#34d399"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1 class="success-title">You're All Set!</h1>
+                <p class="subtitle success-subtitle">
+                    Welcome aboard, <strong class="highlight-name">{{ name }}</strong>! 🎉<br>
+                    Your account has been successfully verified.
+                </p>
+            </div>
+
+            <div class="success-details">
+                <div class="detail-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span>Email verified</span>
+                </div>
+                <div class="detail-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span>Account created</span>
+                </div>
+                <div class="detail-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span>Welcome email sent</span>
+                </div>
+            </div>
+
+            <a href="/" class="btn-primary btn-success-action" id="back-home-btn">
+                <span class="btn-text">Back to Home</span>
+            </a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

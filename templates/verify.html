@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verify your email address with the OTP code sent to your inbox.">
+    <title>Verify OTP — Email Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="bg-particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="container">
+        <div class="card" id="verify-card">
+            <div class="card-glow"></div>
+
+            <div class="card-header">
+                <div class="logo-icon pulse-icon">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                        <rect width="40" height="40" rx="12" fill="url(#otp-grad)"/>
+                        <path d="M12 18L16 22L28 12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
+                        <rect x="10" y="22" width="20" height="8" rx="2" fill="white" fill-opacity="0.2"/>
+                        <text x="20" y="29" text-anchor="middle" fill="white" font-size="7" font-weight="bold">OTP</text>
+                        <defs>
+                            <linearGradient id="otp-grad" x1="0" y1="0" x2="40" y2="40">
+                                <stop stop-color="#7c3aed"/>
+                                <stop offset="1" stop-color="#06b6d4"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1>Verify Your Email</h1>
+                <p class="subtitle">We've sent a 6-digit code to<br><strong class="highlight-email">{{ email }}</strong></p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}" id="flash-alert">
+                            <span class="alert-icon">⚠</span>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form id="otp-form" action="/verify-otp" method="POST" novalidate>
+                <div class="form-group">
+                    <label for="otp">Enter OTP Code</label>
+                    <div class="otp-input-group" id="otp-input-group">
+                        <input type="text" class="otp-box" maxlength="1" data-index="0" inputmode="numeric" autocomplete="one-time-code" autofocus>
+                        <input type="text" class="otp-box" maxlength="1" data-index="1" inputmode="numeric">
+                        <input type="text" class="otp-box" maxlength="1" data-index="2" inputmode="numeric">
+                        <input type="text" class="otp-box" maxlength="1" data-index="3" inputmode="numeric">
+                        <input type="text" class="otp-box" maxlength="1" data-index="4" inputmode="numeric">
+                        <input type="text" class="otp-box" maxlength="1" data-index="5" inputmode="numeric">
+                    </div>
+                    <!-- Hidden input to submit full OTP -->
+                    <input type="hidden" name="otp" id="otp-hidden">
+                    <span class="error-text" id="otp-error"></span>
+                </div>
+
+                <button type="submit" class="btn-primary" id="verify-btn">
+                    <span class="btn-text">Verify Code</span>
+                    <span class="btn-loader" id="btn-loader"></span>
+                </button>
+            </form>
+
+            <p class="footer-text">
+                Didn't receive the code? <a href="/" id="resend-link">Register again</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
