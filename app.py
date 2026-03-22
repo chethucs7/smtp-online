@@ -227,6 +227,47 @@ def success():
     return render_template('success.html', name=name)
 
 
+# ── Diagnostic Route (remove after testing) ─────────────────────────
+@app.route('/test-email')
+def test_email():
+    results = []
+
+    # Check env vars
+    if SMTP_EMAIL:
+        results.append(f"✅ EMAIL_USER is set: {SMTP_EMAIL[:4]}****")
+    else:
+        results.append("❌ EMAIL_USER is NOT set")
+
+    if SMTP_PASSWORD:
+        results.append(f"✅ EMAIL_PASS is set: {SMTP_PASSWORD[:4]}****")
+    else:
+        results.append("❌ EMAIL_PASS is NOT set")
+
+    # Try SMTP connection
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
+        results.append("✅ SMTP_SSL connection to gmail:465 succeeded")
+        try:
+            server.login(SMTP_EMAIL, SMTP_PASSWORD)
+            results.append("✅ SMTP login succeeded")
+        except Exception as e:
+            results.append(f"❌ SMTP login failed: {e}")
+        server.quit()
+    except Exception as e:
+        results.append(f"❌ SMTP_SSL connection failed: {e}")
+
+    # Try port 587 too
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
+        server.starttls()
+        results.append("✅ SMTP TLS connection to gmail:587 succeeded")
+        server.quit()
+    except Exception as e:
+        results.append(f"❌ SMTP TLS connection to gmail:587 failed: {e}")
+
+    return '<br>'.join(results), 200
+
+
 # ── Error Handlers ──────────────────────────────────────────────────
 @app.errorhandler(500)
 def internal_error(error):
