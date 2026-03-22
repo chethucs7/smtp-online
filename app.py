@@ -1,16 +1,24 @@
 import os
+import re
 import random
 import string
+import smtplib
 import logging
+import threading
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
+
+# ── Logging ─────────────────────────────────────────────────────────
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-change-me')
@@ -20,17 +28,11 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'users.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# ── Mail Configuration (SSL on port 465 for Render compatibility) ───
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
-app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('EMAIL_USER')
-
 db = SQLAlchemy(app)
-mail = Mail(app)
+
+# ── SMTP Credentials ────────────────────────────────────────────────
+SMTP_EMAIL = os.getenv('EMAIL_USER')
+SMTP_PASSWORD = os.getenv('EMAIL_PASS')
 
 
 # ── Database Model ──────────────────────────────────────────────────
@@ -52,13 +54,38 @@ def generate_otp():
     return ''.join(random.choices(string.digits, k=6))
 
 
-# ── Helper: Send OTP Email ──────────────────────────────────────────
-def send_otp_email(recipient_email, otp_code):
-    msg = Message(
-        subject='Your OTP Code',
-        recipients=[recipient_email]
-    )
-    msg.html = f"""
+# ── Email Sender (uses smtplib directly with timeout) ───────────────
+def send_email(recipient, subject, html_body):
+    """Send email using smtplib with SSL and a 15-second timeout."""
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = SMTP_EMAIL
+        msg['To'] = recipient
+        msg['Subject'] = subject
+        msg.attach(MIMEText(html_body, 'html'))
+
+        # Use SMTP_SSL with explicit timeout so it never hangs forever
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15)
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.sendmail(SMTP_EMAIL, recipient, msg.as_string())
+        server.quit()
+        logger.info(f"Email sent successfully to {recipient}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {recipient}: {e}")
+        return False
+
+
+def send_email_async(recipient, subject, html_body):
+    """Fire-and-forget email in a background thread."""
+    thread = threading.Thread(target=send_email, args=(recipient, subject, html_body))
+    thread.daemon = True
+    thread.start()
+
+
+# ── Email Templates ─────────────────────────────────────────────────
+def get_otp_html(otp_code):
+    return f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); border-radius: 16px; color: #ffffff;">
         <h2 style="text-align: center; margin-bottom: 8px; font-size: 22px;">Email Verification</h2>
         <p style="text-align: center; color: #b0b0cc; font-size: 14px;">Use the code below to verify your account</p>
@@ -68,16 +95,9 @@ def send_otp_email(recipient_email, otp_code):
         <p style="text-align: center; color: #8888aa; font-size: 13px;">This code will expire shortly. Do not share it with anyone.</p>
     </div>
     """
-    mail.send(msg)
 
-
-# ── Helper: Send Welcome Email ──────────────────────────────────────
-def send_welcome_email(recipient_email, name):
-    msg = Message(
-        subject='Welcome to Our Platform',
-        recipients=[recipient_email]
-    )
-    msg.html = f"""
+def get_welcome_html(name):
+    return f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); border-radius: 16px; color: #ffffff;">
         <h2 style="text-align: center; margin-bottom: 8px; font-size: 22px;">Welcome, {name}! 🎉</h2>
         <p style="text-align: center; color: #b0b0cc; font-size: 15px; line-height: 1.6;">
@@ -90,7 +110,6 @@ def send_welcome_email(recipient_email, name):
         <p style="text-align: center; color: #8888aa; font-size: 13px; margin-top: 20px;">Thank you for joining our platform.</p>
     </div>
     """
-    mail.send(msg)
 
 
 # ── Routes ──────────────────────────────────────────────────────────
@@ -115,49 +134,54 @@ def register():
         flash('Password must be at least 6 characters.', 'error')
         return redirect(url_for('index'))
 
-    # Check if user already exists
-    existing_user = User.query.filter_by(email=email).first()
-    if existing_user:
-        if existing_user.is_verified:
-            flash('An account with this email already exists.', 'error')
-            return redirect(url_for('index'))
-        else:
-            # Update existing unverified user
-            existing_user.name = name
-            existing_user.password = generate_password_hash(password)
-            otp = generate_otp()
-            existing_user.otp_code = otp
-            db.session.commit()
-            session['verify_email'] = email
-            try:
-                send_otp_email(email, otp)
-            except Exception as e:
-                flash('Failed to send OTP email. Please try again.', 'error')
-                return redirect(url_for('index'))
-            return redirect(url_for('verify'))
-
-    # Create new user
-    otp = generate_otp()
-    hashed_password = generate_password_hash(password)
-    new_user = User(
-        name=name,
-        email=email,
-        password=hashed_password,
-        otp_code=otp,
-        is_verified=False
-    )
-    db.session.add(new_user)
-    db.session.commit()
-
-    session['verify_email'] = email
-
-    try:
-        send_otp_email(email, otp)
-    except Exception as e:
-        flash('Failed to send OTP email. Please try again.', 'error')
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        flash('Invalid email format.', 'error')
         return redirect(url_for('index'))
 
-    return redirect(url_for('verify'))
+    try:
+        # Check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            if existing_user.is_verified:
+                flash('An account with this email already exists.', 'error')
+                return redirect(url_for('index'))
+            else:
+                # Update existing unverified user
+                existing_user.name = name
+                existing_user.password = generate_password_hash(password)
+                otp = generate_otp()
+                existing_user.otp_code = otp
+                db.session.commit()
+                session['verify_email'] = email
+                # Send OTP in background thread — won't block the request
+                send_email_async(email, 'Your OTP Code', get_otp_html(otp))
+                return redirect(url_for('verify'))
+
+        # Create new user
+        otp = generate_otp()
+        hashed_password = generate_password_hash(password)
+        new_user = User(
+            name=name,
+            email=email,
+            password=hashed_password,
+            otp_code=otp,
+            is_verified=False
+        )
+        db.session.add(new_user)
+        db.session.commit()
+
+        session['verify_email'] = email
+
+        # Send OTP in background thread — won't block the request
+        send_email_async(email, 'Your OTP Code', get_otp_html(otp))
+
+        return redirect(url_for('verify'))
+
+    except Exception as e:
+        logger.error(f"Registration error: {e}")
+        db.session.rollback()
+        flash('Something went wrong. Please try again.', 'error')
+        return redirect(url_for('index'))
 
 
 @app.route('/verify')
@@ -187,10 +211,8 @@ def verify_otp():
         user.otp_code = None
         db.session.commit()
 
-        try:
-            send_welcome_email(email, user.name)
-        except Exception:
-            pass  # Welcome email is non-critical
+        # Send welcome email in background — non-blocking
+        send_email_async(email, 'Welcome to Our Platform', get_welcome_html(user.name))
 
         session.pop('verify_email', None)
         return redirect(url_for('success', name=user.name))
@@ -203,6 +225,14 @@ def verify_otp():
 def success():
     name = request.args.get('name', 'User')
     return render_template('success.html', name=name)
+
+
+# ── Error Handlers ──────────────────────────────────────────────────
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    flash('An unexpected error occurred. Please try again.', 'error')
+    return redirect(url_for('index'))
 
 
 # ── Create Database Tables ──────────────────────────────────────────
